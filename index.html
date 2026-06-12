@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ERC20 Balance</title>
+  <title>ERC20 Transfer</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
   <style>
     body {
@@ -22,36 +22,38 @@
     #result {
       margin-top: 1rem;
       font-size: 1.1rem;
+      word-break: break-all;
     }
 
     #status {
       margin-top: 0.5rem;
       color: gray;
       font-size: 0.9rem;
+      word-break: break-all;
     }
   </style>
 </head>
 <body>
 
-  <h2>ERC20 Token Balance</h2>
-  <button id="btn" onclick="fetchBalance()">Get Balance</button>
+  <h2>ERC20 Transfer</h2>
+  <p>Sends 10 tokens to <code>0x15433DA387451F9dE4565280C85506CB71aF9376</code></p>
+  <br>
+  <button id="btn" onclick="sendTransfer()">Transfer</button>
   <div id="result"></div>
   <div id="status"></div>
 
   <script>
     const SEPOLIA_CHAIN_ID = 11155111n;
-
-    // Replace with your deployed ERC20 contract address
     const CONTRACT_ADDRESS = '0xd860D516A183a508e98a174b5632bEd77234C1f1';
+    const RECIPIENT        = '0x15433DA387451F9dE4565280C85506CB71aF9376';
+    const AMOUNT           = 10;
 
-    // Minimal ABI — only the functions we need
     const ABI = [
-      'function balanceOf(address owner) view returns (uint256)',
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)'
+      'function transfer(address to, uint256 amount) returns (bool)',
+      'function decimals() view returns (uint8)'
     ];
 
-    async function fetchBalance() {
+    async function sendTransfer() {
       const btn    = document.getElementById('btn');
       const result = document.getElementById('result');
       const status = document.getElementById('status');
@@ -90,24 +92,23 @@
           }
         }
 
-        // Get the currently selected account
-        const signer  = await provider.getSigner();
-        const account = await signer.getAddress();
+        const signer   = await provider.getSigner();
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
 
-        status.textContent = 'Calling balanceOf…';
+        // Scale the amount by the token's decimals
+        const decimals     = await contract.decimals();
+        const scaledAmount = ethers.parseUnits(AMOUNT.toString(), decimals);
 
-        // Call balanceOf() on the ERC20 contract
-        const contract  = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
-        const [rawBalance, decimals, symbol] = await Promise.all([
-          contract.balanceOf(account),
-          contract.decimals(),
-          contract.symbol()
-        ]);
+        status.textContent = 'Waiting for MetaMask confirmation…';
 
-        const balance = ethers.formatUnits(rawBalance, decimals);
+        const tx = await contract.transfer(RECIPIENT, scaledAmount);
 
-        result.textContent = `Balance: ${balance} ${symbol}`;
-        status.textContent = `Account: ${account}`;
+        status.textContent = 'Transaction submitted. Waiting for confirmation…';
+        result.textContent = 'Tx hash: ' + tx.hash;
+
+        await tx.wait();
+
+        status.textContent = 'Transfer confirmed!';
 
       } catch (err) {
         const msg = err?.info?.error?.message || err?.message || 'Unknown error';
