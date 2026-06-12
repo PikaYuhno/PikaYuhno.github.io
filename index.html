@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sepolia Block Height</title>
+  <title>ERC20 Balance</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
   <style>
     body {
@@ -33,15 +33,25 @@
 </head>
 <body>
 
-  <h2>Sepolia Block Height</h2>
-  <button id="btn" onclick="fetchBlock()">Get Block Height</button>
+  <h2>ERC20 Token Balance</h2>
+  <button id="btn" onclick="fetchBalance()">Get Balance</button>
   <div id="result"></div>
   <div id="status"></div>
 
   <script>
     const SEPOLIA_CHAIN_ID = 11155111n;
 
-    async function fetchBlock() {
+    // Replace with your deployed ERC20 contract address
+    const CONTRACT_ADDRESS = '0xd860D516A183a508e98a174b5632bEd77234C1f1';
+
+    // Minimal ABI — only the functions we need
+    const ABI = [
+      'function balanceOf(address owner) view returns (uint256)',
+      'function decimals() view returns (uint8)',
+      'function symbol() view returns (string)'
+    ];
+
+    async function fetchBalance() {
       const btn    = document.getElementById('btn');
       const result = document.getElementById('result');
       const status = document.getElementById('status');
@@ -52,8 +62,8 @@
       }
 
       btn.disabled = true;
-      status.textContent = 'Connecting…';
       result.textContent = '';
+      status.textContent = 'Connecting…';
 
       try {
         const provider = new ethers.BrowserProvider(window.ethereum);
@@ -80,9 +90,24 @@
           }
         }
 
-        const blockNumber = await provider.getBlockNumber();
-        result.textContent = 'Block height: ' + blockNumber.toLocaleString();
-        status.textContent = '';
+        // Get the currently selected account
+        const signer  = await provider.getSigner();
+        const account = await signer.getAddress();
+
+        status.textContent = 'Calling balanceOf…';
+
+        // Call balanceOf() on the ERC20 contract
+        const contract  = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+        const [rawBalance, decimals, symbol] = await Promise.all([
+          contract.balanceOf(account),
+          contract.decimals(),
+          contract.symbol()
+        ]);
+
+        const balance = ethers.formatUnits(rawBalance, decimals);
+
+        result.textContent = `Balance: ${balance} ${symbol}`;
+        status.textContent = `Account: ${account}`;
 
       } catch (err) {
         const msg = err?.info?.error?.message || err?.message || 'Unknown error';
